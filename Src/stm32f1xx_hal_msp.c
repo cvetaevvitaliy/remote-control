@@ -38,7 +38,6 @@
   */
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f1xx_hal.h"
-
 extern DMA_HandleTypeDef hdma_adc1;
 
 extern void _Error_Handler(char *, int);
