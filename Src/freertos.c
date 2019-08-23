@@ -1,8 +1,8 @@
+/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file           : main.h
-  * @brief          : Header for main.c file.
-  *                   This file contains the common defines of the application.
+  * File Name          : freertos.c
+  * Description        : Code for freertos applications
   ******************************************************************************
   * This notice applies to any and all portions of this file
   * that are not between comment pairs USER CODE BEGIN and
@@ -46,65 +46,46 @@
   *
   ******************************************************************************
   */
-
-/* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __MAIN_H__
-#define __MAIN_H__
+/* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
+#include "FreeRTOS.h"
+#include "task.h"
+#include "main.h"
 
-/* USER CODE BEGIN Includes */
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */     
 
 /* USER CODE END Includes */
 
+/* Private typedef -----------------------------------------------------------*/
+/* USER CODE BEGIN PTD */
+
+/* USER CODE END PTD */
+
 /* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN PD */
 
-#define Pairing_key_Pin GPIO_PIN_2
-#define Pairing_key_GPIO_Port GPIOA
-#define Buzz_Pin GPIO_PIN_3
-#define Buzz_GPIO_Port GPIOA
-#define SPI_NSS_Pin GPIO_PIN_4
-#define SPI_NSS_GPIO_Port GPIOA
-#define SenseKey_Pin GPIO_PIN_2
-#define SenseKey_GPIO_Port GPIOB
-#define KeyMinus_Pin GPIO_PIN_12
-#define KeyMinus_GPIO_Port GPIOB
-#define KeyPlus_Pin GPIO_PIN_13
-#define KeyPlus_GPIO_Port GPIOB
-#define B2_Pin GPIO_PIN_14
-#define B2_GPIO_Port GPIOB
-#define B1_Pin GPIO_PIN_15
-#define B1_GPIO_Port GPIOB
-#define B0_Pin GPIO_PIN_8
-#define B0_GPIO_Port GPIOA
-#define A2_Pin GPIO_PIN_3
-#define A2_GPIO_Port GPIOB
-#define A1_Pin GPIO_PIN_4
-#define A1_GPIO_Port GPIOB
-#define A0_Pin GPIO_PIN_5
-#define A0_GPIO_Port GPIOB
+/* USER CODE END PD */
 
-/* ########################## Assert Selection ############################## */
-/**
-  * @brief Uncomment the line below to expanse the "assert_param" macro in the 
-  *        HAL drivers code
-  */
-/* #define USE_FULL_ASSERT    1U */
+/* Private macro -------------------------------------------------------------*/
+/* USER CODE BEGIN PM */
 
-/* USER CODE BEGIN Private defines */
-void RF_DONE(void);
-/* USER CODE END Private defines */
+/* USER CODE END PM */
 
-#ifdef __cplusplus
- extern "C" {
-#endif
-void _Error_Handler(char *, int);
+/* Private variables ---------------------------------------------------------*/
+/* USER CODE BEGIN Variables */
 
-#define Error_Handler() _Error_Handler(__FILE__, __LINE__)
-#ifdef __cplusplus
-}
-#endif
+/* USER CODE END Variables */
 
-#endif /* __MAIN_H__ */
+/* Private function prototypes -----------------------------------------------*/
+/* USER CODE BEGIN FunctionPrototypes */
+   
+/* USER CODE END FunctionPrototypes */
+
+/* Private application code --------------------------------------------------*/
+/* USER CODE BEGIN Application */
+     
+/* USER CODE END Application */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
