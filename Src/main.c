@@ -559,9 +559,9 @@ int main(void)
 			MPU6050_setStandbyXGyroEnabled (true);
 			MPU6050_setStandbyYGyroEnabled (true);
 			MPU6050_setStandbyZGyroEnabled (true);
-//			MPU6050_setStandbyXAccelEnabled(true);
-//			MPU6050_setStandbyYAccelEnabled(true);
-//			MPU6050_setStandbyZAccelEnabled(true);
+			MPU6050_setStandbyXAccelEnabled(true);
+			MPU6050_setStandbyYAccelEnabled(true);
+			MPU6050_setStandbyZAccelEnabled(true);
 			SSD1306_OFF ();
 			HAL_Delay (50);
 
