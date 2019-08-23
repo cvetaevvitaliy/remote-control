@@ -142,14 +142,15 @@ uint8_t* pdata;
 int8_t datarecive[61];
 uint8_t len=0;
 
-float v_bat;
+float v_bat = 0.0;
+float v_bat_temp = 0.0;
 
 volatile int32_t timeResivMs=0;
 char printRSSI_T[20]={0};
 char printCounter[20]={0};
 char printTemp[20]={0};
 char printDelay[20]={0};
-char v_bat_print[6]={0};
+char v_bat_print[8]={0};
 
 char rssi2_print[20]={0};
 
@@ -872,6 +873,266 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
+
+		if ( timer_ON == true ) {
+			time ++;
+			timer_ON_state = false;
+		}
+
+		time_vbat ++;
+
+		key_num = Read_keyboard ();
+
+		MPU6050_getMotion6 (&A_X , &A_Y , &A_Z , &G_X , &G_Y , &G_Z);
+
+
+		if ( RFM69_receiveDone ()) {
+			rssi2 = RFM69_readRSSI2 ();
+			rssi_pos = rssi2;
+			//rssi_pos=~rssi_pos+1;
+			pdata = RFM69_receive (&len);
+			for ( int i = 0 ; i < len ; i ++ )
+				datarecive[ i ] = (( char )pdata[ i ] );
+			DataRecive = *( Data * )datarecive;
+			sprintf (command_p , "CM:%d" , DataRecive.command);
+			sprintf (id_p , "id:%d" , DataRecive.id);
+			sprintf (status_p , "st:%d" , DataRecive.status);
+			sprintf (remote_command_p , "RC:%d" , DataRecive.remote_command);
+			sprintf (data_power_p , "V:%.2fV" , ( DataRecive.data_power / 100.0 ));
+			sprintf (data_1_p , "Temp:%d" , DataRecive.data_1);
+			sprintf (data_2_p , "Pres:%d" , DataRecive.data_2);
+			sprintf (data_3_p , "Humi:%d" , DataRecive.data_3);
+			sprintf (data_4_p , "RSSI:%d" , DataRecive.data_4);
+
+			sprintf (rssi2_print , "R:%d" , rssi2);
+			//RFM69_sleep();
+			rssi_vaue = map (rssi_pos , - 99 , - 28 , 3 , 61);
+			rssi_data[ rssi_counter ] = rssi_vaue;
+			rssi_counter += 5;
+
+
+		}
+
+		if ( clear_lcd == true ) {
+			SSD1306_DrawFilledRectangle (0 , 0 , 128 , 64 , Black);
+			clear_lcd = false;
+		}
+
+
+		if ( active_screen == screen_1 ) {
+			clear_lcd = true;
+			ssd1306_SetCursor (0 , 0);
+			ssd1306_WriteString2 (command_p , Font_7x9 , White);
+			ssd1306_SetCursor (0 , 16);
+			ssd1306_WriteString2 (id_p , Font_7x9 , White);
+			ssd1306_SetCursor (0 , 27);
+			ssd1306_WriteString2 (status_p , Font_7x9 , White);
+			ssd1306_SetCursor (0 , 38);
+			ssd1306_WriteString2 (remote_command_p , Font_7x9 , White);
+			ssd1306_SetCursor (0 , 50);
+			ssd1306_WriteString2 (data_power_p , Font_7x9 , White);
+			ssd1306_SetCursor (60 , 16);
+			ssd1306_WriteString2 (data_1_p , Font_7x9 , White);
+			ssd1306_SetCursor (60 , 27);
+			ssd1306_WriteString2 (data_2_p , Font_7x9 , White);
+			ssd1306_SetCursor (60 , 38);
+			ssd1306_WriteString2 (data_3_p , Font_7x9 , White);
+			ssd1306_SetCursor (60 , 50);
+			ssd1306_WriteString2 (data_4_p , Font_7x9 , White);
+
+			ssd1306_SetCursor (40 , 0);
+			ssd1306_WriteString2 (rssi2_print , Font_7x9 , White);
+		}
+
+		switch ( key_num ) {
+			case 4:
+				active_screen = screen_2;
+				clear_lcd = true;
+				break;
+			case 1:
+				active_screen = screen_1;
+				clear_lcd = true;
+				break;
+
+		}
+
+
+		if ( active_screen == screen_2 ) {
+
+			SSD1306_DrawRectangle (1 , 1 , 127 , 63 , White);
+			for ( uint8_t i = 0 ; i < 122 ; i += 5 ) {
+				SSD1306_DrawLine (125 - i , 61 - rssi_data[ i ] , 125 - i , 61 , White);
+				SSD1306_DrawLine (125 - i - 1 , 61 - rssi_data[ i ] , 125 - i - 1 , 61 , White);
+				SSD1306_DrawLine (125 - i - 2 , 61 - rssi_data[ i ] , 125 - i - 2 , 61 , White);
+
+			}
+
+			//SSD1306_DrawLine(125-rssi_counter,61-rssi_vaue,125-rssi_counter,61,White);
+			ssd1306_SetCursor (5 , 0);
+			ssd1306_WriteString (rssi2_print , Font_7x10 , White);
+
+			if ( rssi_counter >= 125 ) {
+				rssi_counter = 0;
+				SSD1306_DrawFilledRectangle (0 , 0 , 128 , 64 , Black);
+				for ( uint8_t i = 0 ; i < sizeof (rssi_data) ; i ++ )
+					rssi_data[ i ] = 0;
+
+			}
+
+
+
+
+
+
+			//time=0;
+		}
+
+		//sprintf(rssi2_print,"RSSI R:%d",rssi2);
+
+
+
+//		ssd1306_SetCursor(0,0);
+//		ssd1306_WriteString(rssi2_print,Font_7x10,White);
+//	//	ssd1306_WriteString(printTemp,Font_7x10,White);
+//		ssd1306_SetCursor(0,16);
+//		ssd1306_WriteString(printRSSI_T,Font_7x10,White);
+//		ssd1306_SetCursor(0,30);
+//		ssd1306_WriteString(printCounter,Font_7x10,White);
+//		ssd1306_SetCursor(0,45);
+//		ssd1306_WriteString(printTemp,Font_7x10,White);
+
+
+//		ssd1306_SetCursor(60,16);
+//		ssd1306_WriteString(A_x,Font_7x10,White);
+//		ssd1306_SetCursor(60,30);
+//		ssd1306_WriteString(A_y,Font_7x10,White);
+//		ssd1306_SetCursor(60,0);
+//		ssd1306_WriteString(printRSSI_T,Font_7x10,White);
+
+		ssd1306_SetCursor (90 , 0);
+		ssd1306_WriteString (v_bat_print , Font_7x10 , White);
+
+		if ( HAL_GPIO_ReadPin (GPIOB , GPIO_PIN_2)) {
+			time = 0;
+			ssd1306_SetCursor (100 , 45);
+			ssd1306_WriteString ("S" , Font_7x10 , White);
+			theData.command = 0;
+			theData.id = 2;
+			theData.data_power = v_bat * 100;
+			theData.remote_command = map (A_X , - 12000 , 12000 , 3000 , 0);
+			RFM69_send (100 , ( const void * )( &theData ) , sizeof (theData) , true);
+		}
+
+		//--------------------------------------------------------------------------------
+
+		if ( HAL_GPIO_ReadPin (GPIOA , GPIO_PIN_2)) {
+
+			SSD1306_DrawFilledRectangle (0 , 0 , 128 , 64 , Black);
+			ssd1306_SetCursor (0 , 0);
+			if ( timer_ON == false ) {
+				ssd1306_WriteString ("timer On" , Font_7x10 , White);
+				timer_ON = true;
+			} else {
+				ssd1306_WriteString ("timer Off" , Font_7x10 , White);
+				timer_ON = false;
+			}
+			HAL_Delay (80);
+			time = 0;
+			ssd1306_UpdateScreen ();
+			if ( active_screen == screen_2 )
+				SSD1306_DrawFilledRectangle (0 , 0 , 128 , 64 , Black);
+
+
+		} else
+			timer_ON_state = false;
+
+
+//---------------------------------------------------------------------------------
+
+		if ( HAL_GPIO_ReadPin (GPIOB , GPIO_PIN_12)) {
+			time = 0;
+			ssd1306_SetCursor (100 , 45);
+			ssd1306_WriteString ("+" , Font_7x10 , White);
+			theData.command = 0;
+			theData.id = 2;
+			theData.remote_command = 3000;
+			theData.data_power = v_bat * 100.0;
+			theData.status = 0;
+			//	RFM69_listen(false);
+			RFM69_send (100 , ( const void * )( &theData ) , sizeof (theData) , true);
+			//	RFM69_listen(true);
+		}
+
+		if ( HAL_GPIO_ReadPin (GPIOB , GPIO_PIN_13)) {
+			time = 0;
+			ssd1306_SetCursor (100 , 45);
+			ssd1306_WriteString ("-" , Font_7x10 , White);
+			theData.command = 0;
+			theData.id = 2;
+			theData.remote_command = 0;
+			theData.data_power = v_bat * 100.0;
+			theData.status = 1;
+			//	RFM69_listen(false);
+			RFM69_send (100 , ( const void * )( &theData ) , sizeof (theData) , true);
+			//	RFM69_listen(true);
+		}
+
+		if ( HAL_GPIO_ReadPin (GPIOA , GPIO_PIN_0)) {
+			time = 0;
+			ssd1306_SetCursor (100 , 45);
+			//ssd1306_WriteString("K",Font_7x10,White);
+
+		}
+
+		if ( key_num > 0 ) {
+			char key_numP[10] = { 0 };
+			sprintf (key_numP , "%u" , key_num);
+			ssd1306_SetCursor (100 , 45);
+			ssd1306_WriteString (key_numP , Font_7x10 , White);
+		}
+
+
+		if ( time_vbat > 10 ) {
+			v_bat_temp = (( adc_buffer * 3.33 ) / 4095.0) ;
+			v_bat = ( v_bat_temp / ( 100000.0 / ( 100000.0 + 33000.0 )));
+			sprintf (v_bat_print , "%.2fV", v_bat);
+			time_vbat = 0;
+		}
+
+		ssd1306_UpdateScreen ();
+
+		if ( time > 200 ) {
+			MPU6050_setIntDMPEnabled (true);
+			MPU6050_setAccelerometerPowerOnDelay (3);
+			MPU6050_setIntMotionEnabled (1);
+			MPU6050_setMotionDetectionThreshold (2);
+			MPU6050_setMotionDetectionDuration (5);
+			MPU6050_setZeroMotionDetectionThreshold (54);
+			MPU6050_setZeroMotionDetectionDuration (52);
+			MPU6050_setStandbyXGyroEnabled (true);
+			MPU6050_setStandbyYGyroEnabled (true);
+			MPU6050_setStandbyZGyroEnabled (true);
+//			MPU6050_setStandbyXAccelEnabled(true);
+//			MPU6050_setStandbyYAccelEnabled(true);
+//			MPU6050_setStandbyZAccelEnabled(true);
+			SSD1306_OFF ();
+			HAL_Delay (50);
+
+			//RFM69_sleep();
+			//HAL_GPIO_WritePin(GPIOB,GPIO_PIN_1,GPIO_PIN_RESET);
+			PWR->CSR |= PWR_CSR_EWUP;
+			PWR->CR |= PWR_CR_CWUF;
+			PWR->CR = PWR_CR_PDDS | PWR_CR_CWUF;
+			//HAL_PWR_EnterSTOPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
+
+			HAL_PWR_EnterSTANDBYMode ();
+
+			// PWR->CR &= ~PWR_CR_PDDS;
+			// PWR->CR |= PWR_CR_LPDS;
+
+		}
+
+
     osDelay(1);
   }
   /* USER CODE END 5 */ 
