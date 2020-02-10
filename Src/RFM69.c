@@ -9,21 +9,21 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-uint8_t *temp;
-uint8_t data[RF69_MAX_DATA_LEN]; /// recv/xmit buf, including header & crc bytes
-volatile uint8_t datalen;
-volatile uint8_t senderID;
-volatile uint8_t targetID;                /// should match _address
-volatile uint8_t payloadLen;
-volatile uint8_t ACK_Requested;
-volatile uint8_t ACK_RECEIVED;           /// should be polled immediately after sending a packet with ACK request
-uint8_t _mode;
-volatile int16_t rssi;                   /// most accurate RSSI during reception (closest to the reception)
+static uint8_t *temp;
+static uint8_t data[RF69_MAX_DATA_LEN]; /// recv/xmit buf, including header & crc bytes
+static volatile uint8_t datalen;
+static volatile uint8_t senderID;
+static volatile uint8_t targetID;                /// should match _address
+static volatile uint8_t payloadLen;
+static volatile uint8_t ACK_Requested;
+static volatile uint8_t ACK_RECEIVED;           /// should be polled immediately after sending a packet with ACK request
+static uint8_t _mode;
+static volatile int16_t rssi;                   /// most accurate RSSI during reception (closest to the reception)
 
 static uint8_t _address;
 static uint8_t _powerLevel = 31;
 bool _promiscuousMode = false;
-uint8_t _mode = RF69_MODE_STANDBY;
+static uint8_t _mode = RF69_MODE_STANDBY;
 
 // used function prototypes
 void RFM69_writeReg(uint8_t addr, uint8_t val);
@@ -73,7 +73,7 @@ uint8_t RFM69_readTemperature(uint8_t calFactor); // get CMOS temperature (8bit)
 void RFM69_rcCalibration(void); // calibrate the internal RC oscillator for use in wide temperature variations - see datasheet section [4.3.5. RC Timer Accuracy]
 void RFM69_encrypt(const char *key);
 
-int16_t RFM69_readRSSI(bool forceTrigger);
+static int16_t RFM69_readRSSI(bool forceTrigger);
 
 void RFM69_select(void);
 
@@ -239,6 +239,7 @@ bool RFM69_initialize(uint8_t freqBand, uint8_t nodeID, uint8_t networkID) {
   while (RFM69_readReg(REG_SYNCVALUE1) != 0x55 && !Timeout_IsTimeout1());
 */
   for (i = 0; CONFIG[i][0] != 255; i++) {
+
     RFM69_writeReg(CONFIG[i][0], CONFIG[i][1]);
   }
 
@@ -249,8 +250,8 @@ bool RFM69_initialize(uint8_t freqBand, uint8_t nodeID, uint8_t networkID) {
   RFM69_setHighPower(ISRFM69HW); // called regardless if it's a RFM69W or RFM69HW
   RFM69_setMode(RF69_MODE_STANDBY);
   Timeout_SetTimeout1(50);
-  while (((RFM69_readReg(REG_IRQFLAGS1) & RF_IRQFLAGS1_MODEREADY) == 0x00) &&
-         !Timeout_IsTimeout1()); // wait for ModeReady
+  while (((RFM69_readReg(REG_IRQFLAGS1) & RF_IRQFLAGS1_MODEREADY) == 0x00) && !Timeout_IsTimeout1() ); // wait for ModeReady
+
   if (Timeout_IsTimeout1()) {
     return false;
   }
@@ -261,43 +262,53 @@ bool RFM69_initialize(uint8_t freqBand, uint8_t nodeID, uint8_t networkID) {
 
 /// return the frequency (in Hz)
 uint32_t RFM69_getFrequency() {
-  return RF69_FSTEP * (((uint32_t) RFM69_readReg(REG_FRFMSB) << 16) + ((uint16_t) RFM69_readReg(REG_FRFMID) << 8) +
-                       RFM69_readReg(REG_FRFLSB));
+  return RF69_FSTEP * (((uint32_t) RFM69_readReg(REG_FRFMSB) << 16) + ((uint16_t) RFM69_readReg(REG_FRFMID) << 8) + RFM69_readReg(REG_FRFLSB));
 }
 
 
 // set the frequency (in Hz)
 void RFM69_setFrequency(uint32_t freqHz) {
+
   uint8_t oldMode = _mode;
+
   if (oldMode == RF69_MODE_TX) {
     RFM69_setMode(RF69_MODE_RX);
   }
+
   freqHz /= RF69_FSTEP; // divide down by FSTEP to get FRF
   RFM69_writeReg(REG_FRFMSB, freqHz >> 16);
   RFM69_writeReg(REG_FRFMID, freqHz >> 8);
   RFM69_writeReg(REG_FRFLSB, freqHz);
+
   if (oldMode == RF69_MODE_RX) {
     RFM69_setMode(RF69_MODE_SYNTH);
   }
+
   RFM69_setMode(oldMode);
 }
 
 
 /// put transceiver in sleep mode to save battery - to wake or resume receiving just call RFM69_receiveDone()
 void RFM69_sleep() {
+
   RFM69_setMode(RF69_MODE_SLEEP);
+
 }
 
 /// set this node's address
 void RFM69_setAddress(uint8_t addr) {
+
   _address = addr;
   RFM69_writeReg(REG_NODEADRS, _address);
+
 }
 
 /// set this node's network id
 void RFM69_setNetwork(uint16_t networkID) {
+
   RFM69_writeReg(REG_SYNCVALUE1, (uint8_t) (networkID & 0x00FF));
   RFM69_writeReg(REG_SYNCVALUE2, (uint8_t) (networkID >> 8));
+
 }
 
 /** set *transmit/TX* output power: 0=min, 31=max
@@ -309,29 +320,35 @@ void RFM69_setNetwork(uint16_t networkID) {
  * - for RFM69HW the range is from 0-31 [5dBm to 20dBm]  (PA1 & PA2 on PA_BOOST pin & high Power PA settings - see section 3.3.7 in datasheet, p22)
 **/
 void RFM69_setPowerLevel(uint8_t powerLevel) {
+
   _powerLevel = (powerLevel > 31 ? 31 : powerLevel);
+
   if (ISRFM69HW) {
     _powerLevel /= 2;
   }
+
   RFM69_writeReg(REG_PALEVEL, (RFM69_readReg(REG_PALEVEL) & 0xE0) | _powerLevel);
+
 }
 
 bool RFM69_canSend() {
-  if (_mode == RF69_MODE_RX && payloadLen == 0 &&
-      RFM69_readRSSI(0) < CSMA_LIMIT) // if signal stronger than -100dBm is detected assume channel activity
-  {
+
+  if (_mode == RF69_MODE_RX && payloadLen == 0 && RFM69_readRSSI(0) < CSMA_LIMIT){ // if signal stronger than -100dBm is detected assume channel activity
     RFM69_setMode(RF69_MODE_STANDBY);
     return true;
   }
+
   return false;
 }
 
 void RFM69_send(uint8_t toAddress, const void *buffer, uint8_t bufferSize, bool requestACK) {
-  RFM69_writeReg(REG_PACKETCONFIG2,
-                 (RFM69_readReg(REG_PACKETCONFIG2) & 0xFB) | RF_PACKET2_RXRESTART); // avoid RX deadlocks
+
+  RFM69_writeReg(REG_PACKETCONFIG2, (RFM69_readReg(REG_PACKETCONFIG2) & 0xFB) | RF_PACKET2_RXRESTART); // avoid RX deadlocks
+
   //uint32_t now = millis();
   while (!RFM69_canSend() /*&& millis() - now < RF69_CSMA_LIMIT_MS*/) RFM69_receiveDone();
   RFM69_sendFrame(toAddress, buffer, bufferSize, requestACK, false);
+
 }
 
 /// to increase the chance of getting a packet across, call this function instead of send
@@ -340,11 +357,12 @@ void RFM69_send(uint8_t toAddress, const void *buffer, uint8_t bufferSize, bool 
 /// The reason for the semi-automaton is that the lib is interrupt driven and
 /// requires user action to read the received data and decide what to do with it
 /// replies usually take only 5..8ms at 50kbps@915MHz
-bool
-RFM69_sendWithRetry(uint8_t toAddress, const void *buffer, uint8_t bufferSize, uint8_t retries, uint8_t retryWaitTime) {
+bool RFM69_sendWithRetry(uint8_t toAddress, const void *buffer, uint8_t bufferSize, uint8_t retries, uint8_t retryWaitTime) {
+
   for (uint8_t i = 0; i <= retries; i++) {
     RFM69_send(toAddress, buffer, bufferSize, true);
     Timeout_SetTimeout1(retryWaitTime);
+
     while (!Timeout_IsTimeout1()) {
       if (RFM69_ACKReceived(toAddress)) {
         /// Serial.print(" ~ms:"); Serial.print(millis() - sentTime);
@@ -358,27 +376,33 @@ RFM69_sendWithRetry(uint8_t toAddress, const void *buffer, uint8_t bufferSize, u
 
 /// should be polled immediately after sending a packet with ACK request
 bool RFM69_ACKReceived(uint8_t fromNodeID) {
+
   if (RFM69_receiveDone())
     return (senderID == fromNodeID || fromNodeID == RF69_BROADCAST_ADDR) && ACK_RECEIVED;
   return false;
+
 }
 
 /// check whether an ACK was requested in the last received packet (non-broadcasted packet)
 bool RFM69_ACKRequested() {
+
   return ACK_Requested && (targetID != RF69_BROADCAST_ADDR);
+
 }
 
 /// should be called immediately after reception in case sender wants ACK
 void RFM69_sendACK(const void *buffer, uint8_t bufferSize) {
+
   ACK_Requested = 0;   /// TWS added to make sure we don't end up in a timing race and infinite loop sending Acks
   uint8_t sender = senderID;
   int16_t l_rssi = rssi; /// save payload received RSSI value
-  RFM69_writeReg(REG_PACKETCONFIG2,
-                 (RFM69_readReg(REG_PACKETCONFIG2) & 0xFB) | RF_PACKET2_RXRESTART); /// avoid RX deadlocks
+  RFM69_writeReg(REG_PACKETCONFIG2, (RFM69_readReg(REG_PACKETCONFIG2) & 0xFB) | RF_PACKET2_RXRESTART); /// avoid RX deadlocks
+
   Timeout_SetTimeout1(RF69_CSMA_LIMIT_MS);
   while (!RFM69_canSend() && !Timeout_IsTimeout1()) {
     RFM69_receiveDone();
   }
+
   senderID = sender;    // TWS: Restore senderID after it gets wiped out by RFM69_receiveDone()
   RFM69_sendFrame(sender, buffer, bufferSize, false, true);
   rssi = l_rssi; // restore payload RSSI
@@ -386,8 +410,11 @@ void RFM69_sendACK(const void *buffer, uint8_t bufferSize) {
 
 
 static void RFM69_sendFrame(uint8_t toAddress, const void *buffer, uint8_t bufferSize, bool requestACK, bool sendACK) {
+
   RFM69_setMode(RF69_MODE_STANDBY); // turn off receiver to prevent reception while filling fifo
+
   while ((RFM69_readReg(REG_IRQFLAGS1) & RF_IRQFLAGS1_MODEREADY) == 0x00); // wait for ModeReady
+
   RFM69_writeReg(REG_DIOMAPPING1, RF_DIOMAPPING1_DIO0_00); // DIO0 is "Packet Sent"
   if (bufferSize > RF69_MAX_DATA_LEN) bufferSize = RF69_MAX_DATA_LEN;
 
@@ -422,8 +449,7 @@ static void RFM69_sendFrame(uint8_t toAddress, const void *buffer, uint8_t buffe
 /// internal function - interrupt gets called when a packet is received
 void RFM69_interruptHandler() {
 
-  if ((_mode == RF69_MODE_RX || _mode == RF69_MODE_LISTEN) &&
-      (RFM69_readReg(REG_IRQFLAGS2) & RF_IRQFLAGS2_PAYLOADREADY)) {
+  if ((_mode == RF69_MODE_RX || _mode == RF69_MODE_LISTEN) && (RFM69_readReg(REG_IRQFLAGS2) & RF_IRQFLAGS2_PAYLOADREADY)) {
     uint8_t CTLbyte;
 
     if (_mode == RF69_MODE_RX)
@@ -437,15 +463,14 @@ void RFM69_interruptHandler() {
     payloadLen = SPI_transfer8(0);
     payloadLen = payloadLen > 66 ? 66 : payloadLen; // precaution
     targetID = SPI_transfer8(0);
-    if (!(_promiscuousMode || targetID == _address || targetID ==
-                                                      RF69_BROADCAST_ADDR) // match this node's address, or broadcast address or anything in promiscuous mode
-        || payloadLen <
-           3) /// address situation could receive packets that are malformed and don't fit this libraries extra fields
-    {
+    if (!(_promiscuousMode || targetID == _address || targetID == RF69_BROADCAST_ADDR) /// match this node's address, or broadcast address or anything in promiscuous mode
+        || payloadLen < 3){ /// address situation could receive packets that are malformed and don't fit this libraries extra fields
+
       payloadLen = 0;
       RFM69_unselect();
       RFM69_receiveBegin();
       return;
+
     }
 
     datalen = payloadLen - 3;
@@ -460,8 +485,9 @@ void RFM69_interruptHandler() {
     for (uint8_t i = 0; i < datalen; i++) {
       data[i] = SPI_transfer8(0);
     }
+
     if (datalen < RF69_MAX_DATA_LEN) data[datalen] = 0; // add null at end of string
-    RFM69_unselect();
+     RFM69_unselect();
     RFM69_setMode(RF69_MODE_RX);
   } /* else RFM69_setMode(RF69_MODE_TX);
     else if (_mode == RF69_MODE_TX) {
@@ -482,8 +508,7 @@ void RFM69_receiveBegin() {
   ACK_RECEIVED = 0;
   /// rssi = 0;
   if (RFM69_readReg(REG_IRQFLAGS2) & RF_IRQFLAGS2_PAYLOADREADY)
-    RFM69_writeReg(REG_PACKETCONFIG2,
-                   (RFM69_readReg(REG_PACKETCONFIG2) & 0xFB) | RF_PACKET2_RXRESTART); /// avoid RX deadlocks
+    RFM69_writeReg(REG_PACKETCONFIG2, (RFM69_readReg(REG_PACKETCONFIG2) & 0xFB) | RF_PACKET2_RXRESTART); /// avoid RX deadlocks
   RFM69_writeReg(REG_DIOMAPPING1, RF_DIOMAPPING1_DIO0_01); /// set DIO0 to "PAYLOADREADY" in receive mode
   RFM69_setMode(RF69_MODE_RX);
   if (_mode != RF69_MODE_LISTEN)
@@ -502,11 +527,11 @@ bool RFM69_receiveDone() {
     RFM69_setMode(RF69_MODE_STANDBY);
     /// interrupts();  /// enables interrupts
     return true;
-  } else if (_mode == RF69_MODE_RX) /// already in RX no payload yet
-  {
+  } else if (_mode == RF69_MODE_RX){ /// already in RX no payload yet
     interrupts(); /// explicitly re-enable interrupts
     return false;
   }
+
   RFM69_receiveBegin();
   return false;
 }
@@ -516,7 +541,9 @@ bool RFM69_receiveDone() {
  * KEY HAS TO BE 16 bytes !!!
 **/
 void RFM69_encrypt(const char *key) {
+
   RFM69_setMode(RF69_MODE_STANDBY);
+
   if (key != 0) {
     RFM69_select();
     SPI_transfer8(REG_AESKEY1 | 0x80);
@@ -524,7 +551,9 @@ void RFM69_encrypt(const char *key) {
       SPI_transfer8(key[i]);
     RFM69_unselect();
   }
+
   RFM69_writeReg(REG_PACKETCONFIG2, (RFM69_readReg(REG_PACKETCONFIG2) & 0xFE) | (key ? 1 : 0));
+
 }
 
 /// get the received signal strength indicator (RSSI)
@@ -557,25 +586,18 @@ void RFM69_promiscuous(bool onOff) {
 
 /// internal function
 void RFM69_setHighPowerRegs(bool onOff) {
+
   RFM69_writeReg(REG_TESTPA1, onOff ? 0x5D : 0x55);
   RFM69_writeReg(REG_TESTPA2, onOff ? 0x7C : 0x70);
+
 }
 
 /// for debugging
 #define REGISTER_DETAIL 0
 
 void RFM69_readAllRegs() {
+
   uint8_t regVal;
-
-#if REGISTER_DETAIL
-  int capVal;
-
-  //... State Variables for intelligent decoding
-  uint8_t modeFSK = 0;
-  int bitRate = 0;
-  int freqDev = 0;
-  long freqCenter = 0;
-#endif
   char pcBuf[16];
 
   for (uint8_t regAddr = 1; regAddr <= 0x4F; regAddr++) {
@@ -589,295 +611,74 @@ void RFM69_readAllRegs() {
     Serialprint(" - ");
     sprintf(pcBuf, "%02X", regVal);
     Serialprint(pcBuf);   //hex
-
-#if REGISTER_DETAIL
-    switch ( regAddr )
-    {
-        case 0x1 : {
-            Serialprint ( "Controls the automatic Sequencer ( see section 4.2 )\nSequencerOff : " );
-            if ( 0x80 & regVal ) {
-                Serialprint ( "1 -> Mode is forced by the user\n" );
-            } else {
-                Serialprint ( "0 -> Operating mode as selected with Mode bits in RegOpMode is automatically reached with the Sequencer\n" );
-            }
-
-            Serialprint( "\nEnables Listen mode, should be enabled whilst in Standby mode:\nListenOn : " );
-            if ( 0x40 & regVal ) {
-                Serialprint ( "1 -> On\n" );
-            } else {
-                Serialprint ( "0 -> Off ( see section 4.3)\n" );
-            }
-
-            Serialprint( "\nAborts Listen mode when set together with ListenOn=0 See section 4.3.4 for details (Always reads 0.)\n" );
-            if ( 0x20 & regVal ) {
-                Serialprint ( "ERROR - ListenAbort should NEVER return 1 this is a write only register\n" );
-            }
-
-            Serialprint("\nTransceiver's operating modes:\nMode : ");
-            capVal = (regVal >> 2) & 0x7;
-            if ( capVal == 0b000 ) {
-                Serialprint ( "000 -> Sleep mode (SLEEP)\n" );
-            } else if ( capVal = 0b001 ) {
-                Serialprint ( "001 -> Standby mode (STDBY)\n" );
-            } else if ( capVal = 0b010 ) {
-                Serialprint ( "010 -> Frequency Synthesizer mode (FS)\n" );
-            } else if ( capVal = 0b011 ) {
-                Serialprint ( "011 -> Transmitter mode (TX)\n" );
-            } else if ( capVal = 0b100 ) {
-                Serialprint ( "100 -> Receiver Mode (RX)\n" );
-            } else {
-
-                Serialprint ( " -> RESERVED\n" );
-            }
-            Serialprint ( "\n" );
-            break;
-        }
-
-        case 0x2 : {
-
-            Serialprint("Data Processing mode:\nDataMode : ");
-            capVal = (regVal >> 5) & 0x3;
-            if ( capVal == 0b00 ) {
-                Serialprint ( "00 -> Packet mode\n" );
-            } else if ( capVal == 0b01 ) {
-                Serialprint ( "01 -> reserved\n" );
-            } else if ( capVal == 0b10 ) {
-                Serialprint ( "10 -> Continuous mode with bit synchronizer\n" );
-            } else if ( capVal == 0b11 ) {
-                Serialprint ( "11 -> Continuous mode without bit synchronizer\n" );
-            }
-
-            Serialprint("\nModulation scheme:\nModulation Type : ");
-            capVal = (regVal >> 3) & 0x3;
-            if ( capVal == 0b00 ) {
-                Serialprint ( "00 -> FSK\n" );
-                modeFSK = 1;
-            } else if ( capVal == 0b01 ) {
-                Serialprint ( "01 -> OOK\n" );
-            } else if ( capVal == 0b10 ) {
-                Serialprint ( "10 -> reserved\n" );
-            } else if ( capVal == 0b11 ) {
-                Serialprint ( "11 -> reserved\n" );
-            }
-
-            Serialprint("\nData shaping: ");
-            if ( modeFSK ) {
-                Serialprint( "in FSK:\n" );
-            } else {
-                Serialprint( "in OOK:\n" );
-            }
-            Serialprint ("ModulationShaping : ");
-            capVal = regVal & 0x3;
-            if ( modeFSK ) {
-                if ( capVal == 0b00 ) {
-                    Serialprint ( "00 -> no shaping\n" );
-                } else if ( capVal == 0b01 ) {
-                    Serialprint ( "01 -> Gaussian filter, BT = 1.0\n" );
-                } else if ( capVal == 0b10 ) {
-                    Serialprint ( "10 -> Gaussian filter, BT = 0.5\n" );
-                } else if ( capVal == 0b11 ) {
-                    Serialprint ( "11 -> Gaussian filter, BT = 0.3\n" );
-                }
-            } else {
-                if ( capVal == 0b00 ) {
-                    Serialprint ( "00 -> no shaping\n" );
-                } else if ( capVal == 0b01 ) {
-                    Serialprint ( "01 -> filtering with f(cutoff) = BR\n" );
-                } else if ( capVal == 0b10 ) {
-                    Serialprint ( "10 -> filtering with f(cutoff) = 2*BR\n" );
-                } else if ( capVal == 0b11 ) {
-                    Serialprint ( "ERROR - 11 is reserved\n" );
-                }
-            }
-
-            Serialprint ( "\n" );
-            break;
-        }
-
-        case 0x3 : {
-            bitRate = (regVal << 8);
-            break;
-        }
-
-        case 0x4 : {
-            bitRate |= regVal;
-            Serialprint ( "Bit Rate (Chip Rate when Manchester encoding is enabled)\nBitRate : ");
-            unsigned long val = 32UL * 1000UL * 1000UL / bitRate;
-            Serial.println( val );
-            Serialprint( "\n" );
-            break;
-        }
-
-        case 0x5 : {
-            freqDev = ( (regVal & 0x3f) << 8 );
-            break;
-        }
-
-        case 0x6 : {
-            freqDev |= regVal;
-            Serialprint( "Frequency deviation\nFdev : " );
-            unsigned long val = 61UL * freqDev;
-            Serial.println( val );
-            Serialprint ( "\n" );
-            break;
-        }
-
-        case 0x7 : {
-            unsigned long tempVal = regVal;
-            freqCenter = ( tempVal << 16 );
-            break;
-        }
-
-        case 0x8 : {
-            unsigned long tempVal = regVal;
-            freqCenter = freqCenter | ( tempVal << 8 );
-            break;
-        }
-
-        case 0x9 : {
-            freqCenter = freqCenter | regVal;
-            Serialprint ( "RF Carrier frequency\nFRF : " );
-            unsigned long val = 61UL * freqCenter;
-            Serial.println( val );
-            Serialprint( "\n" );
-            break;
-        }
-
-        case 0xa : {
-            Serialprint ( "RC calibration control & status\nRcCalDone : " );
-            if ( 0x40 & regVal ) {
-                Serialprint ( "1 -> RC calibration is over\n" );
-            } else {
-                Serialprint ( "0 -> RC calibration is in progress\n" );
-            }
-
-            Serialprint ( "\n" );
-            break;
-        }
-
-        case 0xb : {
-            Serialprint ( "Improved AFC routine for signals with modulation index lower than 2.  Refer to section 3.4.16 for details\nAfcLowBetaOn : " );
-            if ( 0x20 & regVal ) {
-                Serialprint ( "1 -> Improved AFC routine\n" );
-            } else {
-                Serialprint ( "0 -> Standard AFC routine\n" );
-            }
-            Serialprint ( "\n" );
-            break;
-        }
-
-        case 0xc : {
-            Serialprint ( "Reserved\n\n" );
-            break;
-        }
-
-        case 0xd : {
-            byte val;
-            Serialprint ( "Resolution of Listen mode Idle time (calibrated RC osc):\nListenResolIdle : " );
-            val = regVal >> 6;
-            if ( val == 0b00 ) {
-                Serialprint ( "00 -> reserved\n" );
-            } else if ( val == 0b01 ) {
-                Serialprint ( "01 -> 64 us\n" );
-            } else if ( val == 0b10 ) {
-                Serialprint ( "10 -> 4.1 ms\n" );
-            } else if ( val == 0b11 ) {
-                Serialprint ( "11 -> 262 ms\n" );
-            }
-
-            Serialprint ( "\nResolution of Listen mode Rx time (calibrated RC osc):\nListenResolRx : " );
-            val = (regVal >> 4) & 0x3;
-            if ( val == 0b00 ) {
-                Serialprint ( "00 -> reserved\n" );
-            } else if ( val == 0b01 ) {
-                Serialprint ( "01 -> 64 us\n" );
-            } else if ( val == 0b10 ) {
-                Serialprint ( "10 -> 4.1 ms\n" );
-            } else if ( val == 0b11 ) {
-                Serialprint ( "11 -> 262 ms\n" );
-            }
-
-            Serialprint ( "\nCriteria for packet acceptance in Listen mode:\nListenCriteria : " );
-            if ( 0x8 & regVal ) {
-                Serialprint ( "1 -> signal strength is above RssiThreshold and SyncAddress matched\n" );
-            } else {
-                Serialprint ( "0 -> signal strength is above RssiThreshold\n" );
-            }
-
-            Serialprint ( "\nAction taken after acceptance of a packet in Listen mode:\nListenEnd : " );
-            val = (regVal >> 1 ) & 0x3;
-            if ( val == 0b00 ) {
-                Serialprint ( "00 -> chip stays in Rx mode. Listen mode stops and must be disabled (see section 4.3)\n" );
-            } else if ( val == 0b01 ) {
-                Serialprint ( "01 -> chip stays in Rx mode until PayloadReady or Timeout interrupt occurs.  It then goes to the mode defined by Mode. Listen mode stops and must be disabled (see section 4.3)\n" );
-            } else if ( val == 0b10 ) {
-                Serialprint ( "10 -> chip stays in Rx mode until PayloadReady or Timeout occurs.  Listen mode then resumes in Idle state.  FIFO content is lost at next Rx wakeup.\n" );
-            } else if ( val == 0b11 ) {
-                Serialprint ( "11 -> Reserved\n" );
-            }
-
-
-            Serialprint ( "\n" );
-            break;
-        }
-
-        default : {
-        }
-    }
-#endif
   }
+
   RFM69_unselect();
+
 }
 
-uint8_t RFM69_readTemperature(uint8_t calFactor) /// returns centigrade
-{
+uint8_t RFM69_readTemperature(uint8_t calFactor){ /// returns centigrade
+
   RFM69_setMode(RF69_MODE_STANDBY);
   RFM69_writeReg(REG_TEMP1, RF_TEMP1_MEAS_START);
+
   while ((RFM69_readReg(REG_TEMP1) & RF_TEMP1_MEAS_RUNNING));
-  return ~RFM69_readReg(REG_TEMP2) + COURSE_TEMP_COEF +
-         calFactor; /// 'complement' corrects the slope, rising temp = rising val
+  return ~RFM69_readReg(REG_TEMP2) + COURSE_TEMP_COEF + calFactor; /// 'complement' corrects the slope, rising temp = rising val
 } /// COURSE_TEMP_COEF puts reading in the ballpark, user can add additional correction
 
 void RFM69_rcCalibration() {
+
   RFM69_writeReg(REG_OSC1, RF_OSC1_RCCAL_START);
   while ((RFM69_readReg(REG_OSC1) & RF_OSC1_RCCAL_DONE) == 0x00);
+
 }
 
 uint8_t RFM69_readReg(uint8_t addr) {
+
   uint8_t regval;
   RFM69_select();
   SPI_transfer8(addr & 0x7F);
   regval = SPI_transfer8(0);
   RFM69_unselect();
   return regval;
+
 }
 
 void RFM69_writeReg(uint8_t addr, uint8_t value) {
+
   RFM69_select();
   SPI_transfer8(addr | 0x80);
   SPI_transfer8(value);
   RFM69_unselect();
+
 }
 
 /// select the RFM69 transceiver (save SPI settings, set CS low)
 void RFM69_select() {
+
   noInterrupts();
   RFM69_SetCSPin(LOW);
+
 }
 
 /// unselect the RFM69 transceiver (set CS high, restore SPI settings)
 void RFM69_unselect() {
+
   RFM69_SetCSPin(HIGH);
   interrupts();
+
 }
 
 uint8_t *RFM69_receive(uint8_t *len) {
+
   *len = datalen;
   return data;
+
 }
 
 
 void RFM69_listen(bool onOff) {
+
   if (onOff == true) {
     RFM69_writeReg(REG_OPMODE, RF_OPMODE_SEQUENCER_ON | RF_OPMODE_STANDBY);
     //writeReg(REG_OPMODE, RF_OPMODE_LISTEN_ON | RF_OPMODE_STANDBY);

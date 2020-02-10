@@ -10,7 +10,7 @@
   * inserted by the user or by software development tools
   * are owned by their respective copyright owners.
   *
-  * COPYRIGHT(c) 2019 STMicroelectronics
+  * COPYRIGHT(c) 2020 STMicroelectronics
   *
   * Redistribution and use in source and binary forms, with or without modification,
   * are permitted provided that the following conditions are met:
@@ -202,39 +202,6 @@ long map (long x , long in_min , long in_max , long out_min , long out_max) {
 	return ( x - in_min ) * ( out_max - out_min ) / ( in_max - in_min ) + out_min;
 }
 
-//void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
-//{
-//		if (hadc->Instance == ADC1)
-//			for (int i=0; i<2; i++)
-//		{
-//					value[i]=adc_buffer[i];
-//		}
-
-//}
-
-
-//void RF_DONE(){
-//	//RFM69_receiveBegin();
-////  if(RFM69_receiveDone()){
-////				rssi2=RFM69_readRSSI2();
-////        pdata = RFM69_receive(&len);
-////          for (int i = 0; i < len; i++)
-////            datarecive[i]=((char)pdata[i]);
-////     theData = *(Payload*)datarecive;
-////     tick=0;
-////
-////		//RFM69_sleep();
-////    }
-//				rssi2=RFM69_readRSSI2();
-//        pdata = RFM69_receive(&len);
-//          for (int i = 0; i < len; i++)
-//            datarecive[i]=((char)pdata[i]);
-//     DataReceive = *(Frame*)datarecive;
-//     tick=0;
-//		//	RFM69_setMode(RF69_MODE_STANDBY);
-//	//	RFM69_sleep();
-
-//}
 
 /* USER CODE END PFP */
 
@@ -284,13 +251,13 @@ int main(void)
 	HAL_ADC_Start_DMA (&hadc1 , &adc_buffer , 1);
 	HAL_Delay (10);
 	MPU6050_initialize ();
-//	MPU6050_setIntDMPEnabled(true);
-//	MPU6050_setAccelerometerPowerOnDelay(3);
-//	MPU6050_setIntMotionEnabled(1);
-//	MPU6050_setMotionDetectionThreshold(2);
-//	MPU6050_setMotionDetectionDuration(5);
-//	MPU6050_setZeroMotionDetectionThreshold(54);
-//	MPU6050_setZeroMotionDetectionDuration(52);
+  MPU6050_setIntDMPEnabled(true);
+  MPU6050_setAccelerometerPowerOnDelay(3);
+  MPU6050_setIntMotionEnabled(1);
+  MPU6050_setMotionDetectionThreshold(2);
+  MPU6050_setMotionDetectionDuration(5);
+  MPU6050_setZeroMotionDetectionThreshold(54);
+  MPU6050_setZeroMotionDetectionDuration(52);
 	MPU6050_setStandbyXGyroEnabled (false);
 	MPU6050_setStandbyYGyroEnabled (false);
 	MPU6050_setStandbyZGyroEnabled (false);
@@ -309,6 +276,7 @@ int main(void)
 	RFM69_setPowerLevel (31);
 	// RFM69_sleep();
 	RFM69_receiveBegin ();
+	uint32_t time_gyro = HAL_GetTick();
 	//RF_DONE();
 	HAL_Delay (200);
 
@@ -328,7 +296,10 @@ int main(void)
 
 		key_num = Read_keyboard ();
 
-		MPU6050_getMotion6 (&A_X , &A_Y , &A_Z , &G_X , &G_Y , &G_Z);
+		if (HAL_GetTick() - time_gyro > 200) {
+      MPU6050_getMotion6(&A_X, &A_Y, &A_Z, &G_X, &G_Y, &G_Z);
+      time_gyro = 0;
+    }
 
 
 		if ( RFM69_receiveDone ()) {
@@ -354,6 +325,8 @@ int main(void)
 			rssi_vaue = map (rssi_pos , - 99 , - 28 , 3 , 61);
 			rssi_data[ rssi_counter ] = rssi_vaue;
 			rssi_counter += 5;
+			if (rssi_counter > 60)
+        rssi_counter = 0;
 
 
 		}
@@ -549,6 +522,7 @@ int main(void)
 
 
 		if ( time > 200 ) {
+      //RFM69_sleep();
 			MPU6050_setIntDMPEnabled (true);
 			MPU6050_setAccelerometerPowerOnDelay (3);
 			MPU6050_setIntMotionEnabled (1);
@@ -562,16 +536,16 @@ int main(void)
 			MPU6050_setStandbyXAccelEnabled(true);
 			MPU6050_setStandbyYAccelEnabled(true);
 			MPU6050_setStandbyZAccelEnabled(true);
+      HAL_Delay (100);
 			SSD1306_OFF ();
-			HAL_Delay (50);
+			HAL_Delay (100);
 
 			//RFM69_sleep();
 			//HAL_GPIO_WritePin(GPIOB,GPIO_PIN_1,GPIO_PIN_RESET);
-			PWR->CSR |= PWR_CSR_EWUP;
-			PWR->CR |= PWR_CR_CWUF;
-			PWR->CR = PWR_CR_PDDS | PWR_CR_CWUF;
-			//HAL_PWR_EnterSTOPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
-
+      PWR->CSR |= PWR_CSR_EWUP;
+      PWR->CSR |= PWR_CSR_WUF;
+      PWR->CR |= PWR_CR_CWUF;
+      PWR->CR = PWR_CR_PDDS | PWR_CR_CWUF;
 			HAL_PWR_EnterSTANDBYMode ();
 
 			// PWR->CR &= ~PWR_CR_PDDS;
@@ -601,12 +575,13 @@ void SystemClock_Config(void)
 
     /**Initializes the CPU, AHB and APB busses clocks 
     */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = 16;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI_DIV2;
-  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL16;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL8;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -632,6 +607,10 @@ void SystemClock_Config(void)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
+
+    /**Enables the Clock Security System 
+    */
+  HAL_RCC_EnableCSS();
 
     /**Configure the Systick interrupt time 
     */

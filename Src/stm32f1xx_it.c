@@ -4,7 +4,7 @@
   * @brief   Interrupt Service Routines.
   ******************************************************************************
   *
-  * COPYRIGHT(c) 2019 STMicroelectronics
+  * COPYRIGHT(c) 2020 STMicroelectronics
   *
   * Redistribution and use in source and binary forms, with or without modification,
   * are permitted provided that the following conditions are met:
@@ -37,7 +37,6 @@
 
 /* USER CODE BEGIN 0 */
 extern void RFM69_interruptHandler(void);
-extern void RFM69_receiveBegin(void);
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -56,6 +55,7 @@ void NMI_Handler(void)
   /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
 
   /* USER CODE END NonMaskableInt_IRQn 0 */
+  HAL_RCC_NMI_IRQHandler();
   /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
 
   /* USER CODE END NonMaskableInt_IRQn 1 */
@@ -204,12 +204,7 @@ void EXTI0_IRQHandler(void)
   /* USER CODE END EXTI0_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
   /* USER CODE BEGIN EXTI0_IRQn 1 */
-	//RF_DONE();
-	//RFM69_receiveBegin();
   RFM69_interruptHandler();
-//	RFM69_receiveBegin();
-//	RF_DONE();
-//	RF_DONE();
   /* USER CODE END EXTI0_IRQn 1 */
 }
 

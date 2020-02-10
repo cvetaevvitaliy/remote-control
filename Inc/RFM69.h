@@ -88,7 +88,7 @@ void RFM69_rcCalibration(void);
 /// calibrate the internal RC oscillator for use in wide temperature variations - see datasheet section [4.3.5. RC Timer Accuracy]
 void RFM69_encrypt(const char *key);
 
-int16_t RFM69_readRSSI(bool forceTrigger);
+//int16_t RFM69_readRSSI(bool forceTrigger);
 
 int16_t RFM69_readRSSI2(void);
 
